@@ -9,6 +9,7 @@ dependencies = [
     "huggingface-hub>=0.20.0",
     "rich>=15.0.0",
     "pydantic>=2.13.4",
+    "argparse>=1.4.0",
 ]
 
 [build-system]

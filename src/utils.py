@@ -1,10 +1,12 @@
 from pydantic import BaseModel
-class prompt(BaseModel):
-    prompt: str
+from enum import Enum
 
-class parameter(BaseModel):
-    name: str
-    type: str | int | float
-class function(BaseModel):
+class paramType(Enum):
+    NUMBER = "number"
+    INTEGER = "integer"
+    STRING = "string"
+
+class Function(BaseModel):
     name: str
     description: str
+    parameters: dict[str, paramType]
