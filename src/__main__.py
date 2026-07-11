@@ -2,28 +2,11 @@ from rich.traceback import install
 install()
 from llm_sdk import Small_LLM_Model
 import json
-import argparse
-from src.utils import Function, paramType
-parser = argparse.ArgumentParser('call_me_maybe', usage='uv run -m src [--functions_definition <function_definition_file>] [--input <input_file>] [--\
-output <output_file>]')
-parser.add_argument(
-    '-f',
-    '--functions_definition',
-    default="data/input/functions_definition.json"
-    )
-parser.add_argument(
-    '-i',
-    '--input',
-    default="data/input/function_calling_tests.json"
-    )
-parser.add_argument(
-    '-o',
-    '--output',
-    default='data/output/function_calls.json')
-args = parser.parse_args()
-print(args.functions_definition)
+from src.utils import Function, paramType, Parser 
 
-def get_functions(args: any) -> list[Function]:
+parser = Parser()
+
+def get_functions(args: Parser) -> list[Function]:
     with open(args.functions_definition) as f:
         data = json.load(f)
     functions = []
@@ -38,7 +21,10 @@ def get_functions(args: any) -> list[Function]:
         )]
     return functions
 
-def get_prompts(args):
+def save_output(args: Parser):
+    pass
+
+def get_prompts(args: Parser):
     prompts = []
     with  open(args.input) as f:
         data = json.load(f)
@@ -52,8 +38,8 @@ with open(model.get_path_to_vocab_file(), 'r') as f:
 data = {}
 for k in vocabulary:
     data[vocabulary[k]] = model.decode(vocabulary[k])
-f = get_functions(args)
-prompts = get_prompts(args)
+f = get_functions(parser)
+prompts = get_prompts(parser)
 
 fun_str = ""
 for function in f:
@@ -72,18 +58,32 @@ f" are the tools:\n{fun_str}" \
 '"parameters": {"a": 2.0, "b": 3.0}\n'
 "}"
 try:
+    result = "["
     for promt in prompts:
         final_prompt = base_prompt + promt
-        print(final_prompt)
         final_prompt += "{\n"
-        final_prompt += f"'prompt':'{promt}',\n'name': '"
+        final_prompt += f'"prompt":"{promt}",\n"name": "'
         ids = model.encode(final_prompt).tolist()[0]
+        stack = ["{"]
         line = "{"
-        line += f"'prompt':{promt},\n'name': '"
+        line += f'"prompt":"{promt}",\n"name": "'
+        print(line, end="" , flush=True)
         while True:
             logits = model.get_logits_from_input_ids(ids)
             m = logits.index(max(logits))
             ids += [m]
             line += data[m]
+            if "{" in data[m]:
+                stack += ["{"]
+            if "}" in data[m]:
+                stack.pop()
+            print(data[m], end="", flush=True)
+            if not stack:
+                break
+        result += line + ","
+    result = result[:-1]
+    result += "]"
+    obj = json.loads(result)
+    
 except KeyboardInterrupt:
     pass
