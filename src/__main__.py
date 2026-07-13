@@ -2,7 +2,7 @@ from rich.traceback import install
 install()
 from llm_sdk import Small_LLM_Model
 import json
-from src.utils import Function, paramType, Parser 
+from src.utils import Function, paramType, Parser, myfsm
 
 parser = Parser()
 
@@ -41,6 +41,46 @@ for k in vocabulary:
 f = get_functions(parser)
 prompts = get_prompts(parser)
 
+
+fsm = myfsm()
+fsm.create_tier(f)
+
+for key, value in fsm.tier.items():
+    print(key , value)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+exit()
 fun_str = ""
 for function in f:
     fun_str += f"{function.name}("
