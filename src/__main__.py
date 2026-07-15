@@ -2,92 +2,16 @@ from rich.traceback import install
 install()
 from llm_sdk import Small_LLM_Model
 import json
-from src.utils import Function, paramType, Parser, myfsm
+from src.utils import Function, paramType, Parser, 
 
 parser = Parser()
-
-def get_functions(args: Parser) -> list[Function]:
-    with open(args.functions_definition) as f:
-        data = json.load(f)
-    functions = []
-    d = {'number':paramType.NUMBER, 'string': paramType.STRING}
-    for function in data:
-        functions += [Function(
-            name=function['name'],
-            description=function['description'],
-            parameters={
-                k: paramType(function['parameters'][k]['type']) for k in function['parameters'] 
-            }
-        )]
-    return functions
-
-def save_output(args: Parser):
-    pass
-
-def get_prompts(args: Parser):
-    prompts = []
-    with  open(args.input) as f:
-        data = json.load(f)
-        prompts = [key['prompt'] for key in data ]
-    return prompts
-
-model = Small_LLM_Model()
-with open(model.get_path_to_vocab_file(), 'r') as f:
-    vocabulary = json.load(f)
-
-data = {}
-set_data = set()
-decoded_data = {}
-for k in vocabulary:
-    data[vocabulary[k]] = model.decode(vocabulary[k])
-    set_data.add(data[vocabulary[k]])
-    decoded_data[data[vocabulary[k]]] = vocabulary[k]
-f = get_functions(parser)
-prompts = get_prompts(parser)
-
-
-fsm = myfsm()
-fsm.create_tier(f)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
 
 
 fun_str = ""
-for function in f:
-    fun_str += f"- {function.name}( "
-    for param in function.parameters:
-        fun_str += f"{param}: {function.parameters[param].value}, "
-    fun_str = fun_str[:-2]
-    fun_str += f" ) : {function.description}\n"
+
 
 
 base_prompt = (
@@ -102,7 +26,6 @@ f"{fun_str}"
 "<|im_start|>user\n"
 )
 
-from pprint import pprint
 
 
 
@@ -121,7 +44,8 @@ def collect_tokens(state, token, allowed_tokens):
 
 try:
     for promt in prompts:
-        final_prompt = base_prompt + promt 
+        final_prompt = base_prompt + promt
+        final_prompt += "<|im_end|>" 
         final_prompt += "\n" + "<|im_start|>assistant"        
         ids = model.encode(final_prompt).tolist()[0]
         line = ""

@@ -1,6 +1,9 @@
 from pydantic import BaseModel
 from enum import Enum
 import argparse
+import json
+from llm_sdk import Small_LLM_Model
+
 class paramType(Enum):
     NUMBER = "number"
     INTEGER = "integer"
@@ -116,4 +119,43 @@ class myfsm:
                 if self.current_state == -1:
                     return False
         return True
-                    
+
+class Model:
+    def __init__(self, parser: Parser):
+        self.parser = parser
+        self.prompts: list[str] = []
+        self.functions: list[Function] = []
+        self.model = Small_LLM_Model()
+        self.fsm = myfsm()
+        self.get_functions()
+        self.get_prompts()
+        self.fsm.create_tier(self.functions)
+        self.functions_str = ""
+
+    def _creat_str_functions(self):
+        for function in self.functions:
+            self.functions_str += f"- {function.name}( "
+            for param in function.parameters:
+                self.functions_str += f"{param}: {function.parameters[param].value}, "
+            self.functions_str = self.functions_str[:-2]
+            self.functions_str += f" ) : {function.description}\n"
+
+    def get_functions(self) -> list[Function]:
+        with open(self.parser.functions_definition) as f:
+            data = json.load(f)
+        for function in data:
+            self.functions += [Function(
+                name=function['name'],
+                description=function['description'],
+                parameters={
+                    k: paramType(function['parameters'][k]['type']) for k in function['parameters'] 
+                }
+            )]
+
+    def save_output(self):
+        pass
+
+    def get_prompts(self):
+        with  open(self.parser.input) as f:
+            data = json.load(f)
+            self.prompts = [key['prompt'] for key in data ]
