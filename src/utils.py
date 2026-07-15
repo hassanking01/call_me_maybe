@@ -109,5 +109,11 @@ class myfsm:
                     self.state += 1
                     self.tier.setdefault(self.state, {}).update({"}": -1})
 
-
+    def update_state(self, generated_token: str):
+        for c in generated_token:
+            if c in self.tier[self.current_state]:
+                self.current_state =  self.tier[self.current_state][c]
+                if self.current_state == -1:
+                    return False
+        return True
                     

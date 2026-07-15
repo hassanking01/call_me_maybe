@@ -83,75 +83,69 @@ fsm.create_tier(f)
 
 fun_str = ""
 for function in f:
-    fun_str += f"{function.name}("
+    fun_str += f"- {function.name}( "
     for param in function.parameters:
-        fun_str += f"{param}: {function.parameters[param].value},"
-    fun_str = fun_str[:-1]
-    fun_str += f") : {function.description}\n"
+        fun_str += f"{param}: {function.parameters[param].value}, "
+    fun_str = fun_str[:-2]
+    fun_str += f" ) : {function.description}\n"
 
-base_prompt = "you are a function calling system here" \
-f" are the tools:\n{fun_str}" \
-"output should be like this example\n" \
-"{\n"\
-'"prompt": "What is the sum of 2 and 3?",\n'\
-'"name": "fn_add_numbers",\n'\
-'"parameters": {"a": 2.0, "b": 3.0}\n'
-"}"
+
+base_prompt = (
+"<|im_start|>system\n"
+"You are a function calling system. Given a user request, "
+"output ONLY a JSON object calling the correct "
+"function, in this exact format:\n"
+'{"name": "function_name", "parameters": {...}}\n'
+"Available functions:\n"
+f"{fun_str}"
+"<|im_end|>\n"
+"<|im_start|>user\n"
+)
+
 from pprint import pprint
-pprint(fsm.tier, indent=4)
+
+
+
+def collect_tokens(state, token, allowed_tokens):
+    if state == -1:
+        return
+    if state not in fsm.tier:
+        return
+    for ch in fsm.tier[state]:
+        new_token = token + ch
+        new_state = fsm.tier[state][ch]
+        if new_token in set_data:
+            allowed_tokens += [decoded_data[new_token]]
+            collect_tokens(new_state, new_token, allowed_tokens) 
+
 
 try:
-    result = "["
     for promt in prompts:
-        print(promt)
-        final_prompt = base_prompt + promt
-        final_prompt += "{\n"
-        final_prompt += f'"prompt":"{promt}",\n"name": "'
+        final_prompt = base_prompt + promt 
+        final_prompt += "\n" + "<|im_start|>assistant"        
         ids = model.encode(final_prompt).tolist()[0]
-        stack = ["{"]
         line = ""
+        resutl = []
         while True:
-            token = ""
             allowed_tokens = []
-            t = []
             state = fsm.current_state
-            while True:
-                flag = False
-                d = fsm.tier[state]
-                if len(d) == 1:
-                    for key in d:
-                        token += key
-                        if token in set_data:
-                            allowed_tokens += [decoded_data[token]]
-                            t += [token]
-                        else:
-                            flag = True
-                            break
-                        state = fsm.tier[state][key]
-                        flag = state == -1                            
-                else:
-                    for key in d:
-                        allowed_tokens += [decoded_data[key]]
-                    flag = True
-                if flag:
-                    break
+            collect_tokens(fsm.current_state, "" ,allowed_tokens)
             logits = model.get_logits_from_input_ids(ids)
             filtred_logits = [float("-inf")] * len(logits)
-            for token in allowed_tokens:
-                filtred_logits[token] = logits[token]
+            for token_id in allowed_tokens:
+                filtred_logits[token_id] = logits[token_id]
             logits = filtred_logits
             m = logits.index(max(logits))
             ids += [m]
             line += data[m]
-            flag = False
-            for c in data[m]:
-                if c in fsm.tier[fsm.current_state]:
-                    fsm.current_state =  fsm.tier[fsm.current_state][c]
-                    flag = fsm.current_state == -1
 
             print(data[m], end="", flush=True)
-            if flag:
+            if not fsm.update_state(data[m]):
+                fsm.current_state = 0
+                valid_json = json.loads(line)
+                resutl += [{"prompt": promt, **valid_json}]
+                print()
                 break
-    
+    print(resutl)
 except KeyboardInterrupt:
     pass
