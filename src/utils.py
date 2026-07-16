@@ -38,11 +38,12 @@ class Parser:
         self.output: str = args.output
         self.functions_definition: str = args.functions_definition
 
-class myfsm:
+class FSM:
     def __init__(self):
         self.current_state = 0
         self.tier = {}
         self.state = 0
+        self.free_state = False
     
     def create_tier(self, functions: list[Function]):
         first_part = '{"name": "'
@@ -122,7 +123,7 @@ class myfsm:
                     if self.current_state == -1:
                         return False
         else:
-            if '"' in generated_token:
+            if generated_token[-1] == '"':
                 self.current_state = self.tier[self.current_state][None]
         return True
 
@@ -132,7 +133,7 @@ class Model:
         self.prompts: list[str] = []
         self.functions: list[Function] = []
         self.model = Small_LLM_Model()
-        self.fsm = myfsm()
+        self.fsm = FSM()
         self.get_functions()
         self.get_prompts()
         self.fsm.create_tier(self.functions)
@@ -149,10 +150,8 @@ class Model:
             "<|im_end|>\n"
             "<|im_start|>user\n"
             )
-        print(self.base_prompt)
-        exit()
         self.set_data = set()
-        self.data = {}
+        self.encoded_data = {}
         self.decoded_data = {}
         self.get_vocabulary()
         self.final_result = []
@@ -162,8 +161,8 @@ class Model:
             bad_vocab_json = json.load(vocab_file)
         for key in bad_vocab_json:
             token = self.model.decode(bad_vocab_json[key])
-            self.decoded_data[token] = bad_vocab_json[key]
-            self.data[bad_vocab_json[key]] = token
+            self.encoded_data[token] = bad_vocab_json[key]
+            self.decoded_data[bad_vocab_json[key]] = token
             self.set_data.add(token)
 
     def _creat_str_functions(self):
@@ -197,7 +196,7 @@ class Model:
             new_token = token + ch
             new_state = self.fsm.tier[state][ch]
             if new_token in self.set_data:
-                allowed_tokens += [self.decoded_data[new_token]]
+                allowed_tokens += [self.encoded_data[new_token]]
                 self.collect_tokens(new_state, new_token, allowed_tokens) 
 
     def save_output(self):
@@ -207,7 +206,25 @@ class Model:
         with  open(self.parser.input) as f:
             data = json.load(f)
             self.prompts = [key['prompt'] for key in data ]
+    
+    def get_valid_token(self, token: str):
+        resutl = 0
+        
+        for idx, c in enumerate(token):
+            if c == '"':
+                if idx - 1 > 0:
+                    if token[idx - 1] != '\\':
+                        resutl = idx
+                        self.fsm.free_state = False
+                        break
 
+                else:
+                    resutl = idx
+                    self.fsm.free_state = False
+                    break
+        if not self.fsm.free_state:
+            token = token[:resutl + 1]
+        return token
     def run(self):
         for promt in self.prompts:
             final_prompt = self.base_prompt + promt
@@ -224,12 +241,16 @@ class Model:
                     for token_id in allowed_tokens:
                         filtred_logits[token_id] = logits[token_id]
                     logits = filtred_logits
+                else:
+                    self.fsm.free_state = True
                 m = logits.index(max(logits))
                 ids += [m]
-                line += self.data[m]
-
-                print(self.data[m], end="", flush=True)
-                if not self.fsm.update_state(self.data[m], allowed_tokens):
+                next_token = self.decoded_data[m]
+                if  self.fsm.free_state:
+                    next_token = self.get_valid_token(self.decoded_data[m])
+                line += next_token
+                print(next_token, end="", flush=True)
+                if not self.fsm.update_state(next_token, allowed_tokens):
                     self.fsm.current_state = 0
                     valid_json = json.loads(line)
                     self.final_result += [{"prompt": promt, **valid_json}]

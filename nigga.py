@@ -1,9 +1,77 @@
-from src.utils import myfsm, Function, Parser, paramType
+from src.utils import FSM, Function, Parser, paramType
 from llm_sdk import Small_LLM_Model
 import json
 from pprint import pprint
 
 
+token = "hello there \" what u doing \""
+resutl = 0
+print(token)
+
+print([c for c in token])
+print([i for i in range(len(token))])
+print(token[:resutl + 1])
+print(resutl)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+exit()
 
 model = Small_LLM_Model()
 
@@ -17,15 +85,12 @@ with open(vocabulary_path) as vocabulary_file:
 set_data = set(good_vocabulary.keys())
 all_token_string = []
 for token in set_data:
-    if token.startswith('"') and token[1:].startswith(','):
+    if token.startswith('\\"'):
         all_token_string += [token]
 
-print(all_token_string)
-
-exit()
 
 
-fsm = myfsm()
+fsm = FSM()
 
 def get_functions(args: Parser) -> list[Function]:
     with open(args.functions_definition) as f:

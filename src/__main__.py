@@ -8,11 +8,11 @@ def main():
     model.run()
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        pass
-    except Exception as e:
-        print(e)
-    except BaseException as e:
-        print(e)
+    main()
+    # try:
+    # except KeyboardInterrupt:
+    #     pass
+    # except Exception as e:
+    #     print(e)
+    # except BaseException as e:
+    #     print(e)
