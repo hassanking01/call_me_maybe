@@ -244,7 +244,7 @@ class Model:
                 self.fsm.free_state = not len(allowed_tokens)
                 new_token = '"' if not allowed_tokens else self.decoded_data[random.choice(allowed_tokens)]
                 print(new_token, end="", flush=True)
-                # time.sleep(0.1)
+                time.sleep(random.random() * 0.2)
                 if not self.fsm.update_state(new_token):
                     self.fsm.current_state = 0
                     print()
