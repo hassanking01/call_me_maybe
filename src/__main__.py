@@ -5,7 +5,7 @@ install()
 def main():
     parser = Parser()
     model = Model(parser)
-    model.run()
+    model.test_collect_tokens()
 
 if __name__ == "__main__":
     main()

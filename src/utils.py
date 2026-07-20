@@ -3,6 +3,9 @@ from enum import Enum
 import argparse
 import json
 from llm_sdk import Small_LLM_Model
+from rich import print
+import random
+import time
 
 class paramType(Enum):
     NUMBER = "number"
@@ -115,8 +118,8 @@ class FSM:
                     self.state += 1
                     self.tier.setdefault(self.state, {}).update({"}": -1})
 
-    def update_state(self, generated_token: str, allowed_tokens):
-        if allowed_tokens:
+    def update_state(self, generated_token: str):
+        if not self.free_state:
             for c in generated_token:
                 if c in self.tier[self.current_state]:
                     self.current_state =  self.tier[self.current_state][c]
@@ -125,6 +128,7 @@ class FSM:
         else:
             if generated_token[-1] == '"':
                 self.current_state = self.tier[self.current_state][None]
+                self.free_state = False
         return True
 
 class Model:
@@ -137,6 +141,7 @@ class Model:
         self.get_functions()
         self.get_prompts()
         self.fsm.create_tier(self.functions)
+        print(self.fsm.tier)
         self.functions_str = ""
         self._creat_str_functions()
         self.base_prompt = (
@@ -195,7 +200,12 @@ class Model:
                 return
             new_token = token + ch
             new_state = self.fsm.tier[state][ch]
-            if new_token in self.set_data:
+            if new_token in self.set_data :
+                # new_token = (
+                #     new_token
+                #     if self.fsm.tier[state][ch] == -1
+                #     else new_token[:-1]
+                # )
                 allowed_tokens += [self.encoded_data[new_token]]
                 self.collect_tokens(new_state, new_token, allowed_tokens) 
 
@@ -225,6 +235,25 @@ class Model:
         if not self.fsm.free_state:
             token = token[:resutl + 1]
         return token
+    
+    def test_collect_tokens(self):
+        while True:
+            while True:
+                allowed_tokens = []
+                self.collect_tokens(self.fsm.current_state, "", allowed_tokens)
+                self.fsm.free_state = not len(allowed_tokens)
+                new_token = '"' if not allowed_tokens else self.decoded_data[random.choice(allowed_tokens)]
+                print(new_token, end="", flush=True)
+                # time.sleep(0.1)
+                if not self.fsm.update_state(new_token):
+                    self.fsm.current_state = 0
+                    print()
+                    break
+            time.sleep(0.1)
+            
+
+
+
     def run(self):
         for promt in self.prompts:
             final_prompt = self.base_prompt + promt
@@ -250,7 +279,7 @@ class Model:
                     next_token = self.get_valid_token(self.decoded_data[m])
                 line += next_token
                 print(next_token, end="", flush=True)
-                if not self.fsm.update_state(next_token, allowed_tokens):
+                if not self.fsm.update_state(next_token):
                     self.fsm.current_state = 0
                     valid_json = json.loads(line)
                     self.final_result += [{"prompt": promt, **valid_json}]
