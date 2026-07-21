@@ -47,7 +47,62 @@ class FSM:
         self.tier = {}
         self.state = 0
         self.free_state = False
-    
+    def generate_number(self):
+        for c in '-0123456789':
+            if c == '-':
+                self.tier.setdefault(self.state, {}).update({c: self.state + 1})
+            elif c == '0':
+                self.tier.setdefault(self.state, {}).update({c: self.state + 2})
+            else:
+                self.tier.setdefault(self.state, {}).update({c: self.state + 3})
+        for c in '0123456789':
+            if c == '0':
+                self.tier.setdefault(self.state + 1 , {}).update({c: self.state + 2})
+            else:
+                self.tier.setdefault(self.state + 1, {}).update({c: self.state + 3})
+        self.tier.setdefault(self.state + 2, {}).update({".": self.state + 4})
+        for c in ".0123456789":
+            if c == ".":
+                self.tier.setdefault(self.state + 3, {}).update({c: self.state + 4})
+            else:
+                self.tier.setdefault(self.state + 3, {}).update({c: self.state + 3})
+        for c in "012345789":
+            self.tier.setdefault(self.state + 4, {}).update({c: self.state + 5})
+        
+        for c in "012345789":
+            self.tier.setdefault(self.state + 5, {}).update({c: self.state + 5})
+        self.state += 5    
+    def generate_integer(self, idx):
+        for c in '-0123456789':
+            if c == '-':
+                self.tier.setdefault(self.state, {}).update({c: self.state + 1})
+            elif c == '0':
+                self.tier.setdefault(self.state, {}).update({c: self.state + 4})
+            else:
+                self.tier.setdefault(self.state, {}).update({c: self.state + 3})
+        for c in '123456789':
+                self.tier.setdefault(self.state + 1, {}).update({c: self.state + 3})
+        for c in "0123456789":
+                self.tier.setdefault(self.state + 3, {}).update({c: self.state + 3})
+        if idx < len(function.parameters) -1:
+            self.tier.setdefault(self.state + 3, {}).update( {",": self.state + 5})
+        else:
+            self.tier.setdefault(self.state + 3, {}).update({"}": self.state + 5})
+        self.state += 4
+    def generate_str(self):
+        self.tier.setdefault(self.state, {}).update({'"': self.state + 1})
+        self.tier.setdefault(self.state + 1, {}).update({None: self.state + 2})
+        self.state += 2
+    def generate_boolean(self):
+        old_state = self.state
+        for c in "true":
+            self.tier.setdefault(self.state, {}).update({c: self.state + 1})
+            self.state += 1
+        self.tier[self.state - 1]["e"] = self.state + 4                
+        self.tier.setdefault(old_state, {}).update({'f': self.state})
+        for c in "alse":
+            self.tier.setdefault(self.state, {}).update({c: self.state + 1})
+            self.state += 1
     def create_tier(self, functions: list[Function]):
         first_part = '{"name": "'
         for c in first_part:
@@ -72,64 +127,16 @@ class FSM:
                     self.tier[self.state] = {c: self.state + 1}
                     self.state += 1
 
-                # TODO MAKE ALL PARAMS TYPES
                 match function.parameters[param]:
-                    
                     case paramType.NUMBER:
-                        for c in '-0123456789':
-                            if c == '-':
-                                self.tier.setdefault(self.state, {}).update({c: self.state + 1})
-                            elif c == '0':
-                                self.tier.setdefault(self.state, {}).update({c: self.state + 2})
-                            else:
-                                self.tier.setdefault(self.state, {}).update({c: self.state + 3})
-                        for c in '0123456789':
-                            if c == '0':
-                                self.tier.setdefault(self.state + 1 , {}).update({c: self.state + 2})
-                            else:
-                                self.tier.setdefault(self.state + 1, {}).update({c: self.state + 3})
-                        self.tier.setdefault(self.state + 2, {}).update({".": self.state + 4})
-                        for c in ".0123456789":
-                            if c == ".":
-                                self.tier.setdefault(self.state + 3, {}).update({c: self.state + 4})
-                            else:
-                                self.tier.setdefault(self.state + 3, {}).update({c: self.state + 3})
-                        for c in "012345789":
-                            self.tier.setdefault(self.state + 4, {}).update({c: self.state + 5})
-                        
-                        for c in "012345789":
-                            self.tier.setdefault(self.state + 5, {}).update({c: self.state + 5})
-                        self.state += 5
+                        self.generate_number()
                     case paramType.INTEGER:
-                        for c in '-0123456789':
-                            if c == '-':
-                                self.tier.setdefault(self.state, {}).update({c: self.state + 1})
-                            elif c == '0':
-                                self.tier.setdefault(self.state, {}).update({c: self.state + 5})
-                            else:
-                                self.tier.setdefault(self.state, {}).update({c: self.state + 3})
-                        for c in '123456789':
-                                self.tier.setdefault(self.state + 1, {}).update({c: self.state + 3})
-                        for c in "0123456789":
-                                self.tier.setdefault(self.state + 3, {}).update({c: self.state + 3})
-                        if idx < len(function.parameters) -1:
-                            index = 3
-                            for c in ", ":
-                                self.tier.setdefault(self.state + index, {}).update( {c: self.state + index + 1})
-                                index += 1
-                        else:
-                            self.tier.setdefault(self.state + 3, {}).update({"}": self.state + 1})
-                            self.state += 1
-                            self.tier.setdefault(self.state, {}).update({"}": -1})
-                        
-                        self.state += 6
+                        self.generate_integer(idx)
                     case paramType.STRING:
-                        self.tier.setdefault(self.state, {}).update({'"': self.state + 1})
-                        self.tier.setdefault(self.state + 1, {}).update({None: self.state + 2})
-                        self.state += 2
+                        self.generate_str()
                     case paramType.BOOLEAN:
-                        pass
-                
+                        self.generate_boolean()
+                        
                 if idx < len(function.parameters) -1:
                     for c in ", ":
                         self.tier.setdefault(self.state, {}).update( {c: self.state + 1})
@@ -141,11 +148,14 @@ class FSM:
 
     def update_state(self, generated_token: str):
         if not self.free_state:
-            for c in generated_token:
+            if generated_token in self.tier[self.current_state]:
+                self.current_state = self.tier[self.current_state][generated_token]
+                return self.current_state != -1
+            for  c in generated_token:
                 if c in self.tier[self.current_state]:
                     self.current_state =  self.tier[self.current_state][c]
-                    if self.current_state == -1:
-                        return False
+                if self.current_state == -1:
+                    return False
         else:
             if generated_token[-1] == '"':
                 self.current_state = self.tier[self.current_state][None]
@@ -222,11 +232,6 @@ class Model:
             new_token = token + ch
             new_state = self.fsm.tier[state][ch]
             if new_token in self.set_data :
-                # new_token = (
-                #     new_token
-                #     if self.fsm.tier[state][ch] == -1
-                #     else new_token[:-1]
-                # )
                 allowed_tokens += [self.encoded_data[new_token]]
                 self.collect_tokens(new_state, new_token, allowed_tokens) 
 
@@ -264,6 +269,7 @@ class Model:
                 self.collect_tokens(self.fsm.current_state, "", allowed_tokens)
                 self.fsm.free_state = not len(allowed_tokens)
                 new_token = '"' if not allowed_tokens else self.decoded_data[random.choice(allowed_tokens)]
+                time.sleep(0.06)
                 print(new_token, end="", flush=True)
                 if not self.fsm.update_state(new_token):
                     self.fsm.current_state = 0

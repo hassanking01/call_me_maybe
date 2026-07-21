@@ -8,11 +8,11 @@ def main():
     model.test_collect_tokens()
 
 if __name__ == "__main__":
-    main()
-    # try:
-    # except KeyboardInterrupt:
-    #     pass
-    # except Exception as e:
-    #     print(e)
-    # except BaseException as e:
-    #     print(e)
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        print(e)
+    except BaseException as e:
+        print(e)
