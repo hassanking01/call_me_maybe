@@ -101,7 +101,28 @@ class FSM:
                             self.tier.setdefault(self.state + 5, {}).update({c: self.state + 5})
                         self.state += 5
                     case paramType.INTEGER:
-                        pass
+                        for c in '-0123456789':
+                            if c == '-':
+                                self.tier.setdefault(self.state, {}).update({c: self.state + 1})
+                            elif c == '0':
+                                self.tier.setdefault(self.state, {}).update({c: self.state + 5})
+                            else:
+                                self.tier.setdefault(self.state, {}).update({c: self.state + 3})
+                        for c in '123456789':
+                                self.tier.setdefault(self.state + 1, {}).update({c: self.state + 3})
+                        for c in "0123456789":
+                                self.tier.setdefault(self.state + 3, {}).update({c: self.state + 3})
+                        if idx < len(function.parameters) -1:
+                            index = 3
+                            for c in ", ":
+                                self.tier.setdefault(self.state + index, {}).update( {c: self.state + index + 1})
+                                index += 1
+                        else:
+                            self.tier.setdefault(self.state + 3, {}).update({"}": self.state + 1})
+                            self.state += 1
+                            self.tier.setdefault(self.state, {}).update({"}": -1})
+                        
+                        self.state += 6
                     case paramType.STRING:
                         self.tier.setdefault(self.state, {}).update({'"': self.state + 1})
                         self.tier.setdefault(self.state + 1, {}).update({None: self.state + 2})
@@ -244,7 +265,6 @@ class Model:
                 self.fsm.free_state = not len(allowed_tokens)
                 new_token = '"' if not allowed_tokens else self.decoded_data[random.choice(allowed_tokens)]
                 print(new_token, end="", flush=True)
-                time.sleep(random.random() * 0.2)
                 if not self.fsm.update_state(new_token):
                     self.fsm.current_state = 0
                     print()
