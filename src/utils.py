@@ -1,16 +1,19 @@
-from pydantic import BaseModel
-from enum import Enum
 import argparse
 import json
-from llm_sdk import Small_LLM_Model
-from rich.console import Console
-from rich.syntax import Syntax
-from rich import print
-from rich.pretty import Pretty
-from rich.panel import Panel
 import random
 import time
+from enum import Enum
 from pathlib import Path
+
+from pydantic import BaseModel
+from rich import print
+from rich.console import Console
+from rich.panel import Panel
+from rich.pretty import Pretty
+from rich.syntax import Syntax
+
+from llm_sdk import Small_LLM_Model
+
 
 class paramType(Enum):
     NUMBER = "number"
@@ -18,33 +21,34 @@ class paramType(Enum):
     STRING = "string"
     BOOLEAN = "boolean"
 
+
 class Function(BaseModel):
     name: str
     description: str
     parameters: dict[str, paramType]
 
+
 class Parser:
     def __init__(self):
-        parser = argparse.ArgumentParser('call_me_maybe', usage='uv run -m src [--functions_definition <function_definition_file>] [--input <input_file>] [--\
-        output <output_file>]')
+        parser = argparse.ArgumentParser(
+            "call_me_maybe",
+            usage="uv run -m src [--functions_definition <function_definition_file>] [--input <input_file>] [--\
+        output <output_file>]",
+        )
         parser.add_argument(
-            '-f',
-            '--functions_definition',
-            default="data/input/functions_definition.json"
-            )
+            "-f",
+            "--functions_definition",
+            default="data/input/functions_definition.json",
+        )
         parser.add_argument(
-            '-i',
-            '--input',
-            default="data/input/function_calling_tests.json"
-            )
-        parser.add_argument(
-            '-o',
-            '--output',
-            default='data/output/function_calls.json')
+            "-i", "--input", default="data/input/function_calling_tests.json"
+        )
+        parser.add_argument("-o", "--output", default="data/output/function_calls.json")
         args = parser.parse_args()
         self.input: str = args.input
         self.output: str = args.output
         self.functions_definition: str = args.functions_definition
+
 
 class FSM:
     def __init__(self):
@@ -52,17 +56,18 @@ class FSM:
         self.tier = {}
         self.state = 0
         self.free_state = False
+
     def generate_number(self):
-        for c in '-0123456789':
-            if c == '-':
+        for c in "-0123456789":
+            if c == "-":
                 self.tier.setdefault(self.state, {}).update({c: self.state + 1})
-            elif c == '0':
+            elif c == "0":
                 self.tier.setdefault(self.state, {}).update({c: self.state + 2})
             else:
                 self.tier.setdefault(self.state, {}).update({c: self.state + 3})
-        for c in '0123456789':
-            if c == '0':
-                self.tier.setdefault(self.state + 1 , {}).update({c: self.state + 2})
+        for c in "0123456789":
+            if c == "0":
+                self.tier.setdefault(self.state + 1, {}).update({c: self.state + 2})
             else:
                 self.tier.setdefault(self.state + 1, {}).update({c: self.state + 3})
         self.tier.setdefault(self.state + 2, {}).update({".": self.state + 4})
@@ -73,41 +78,45 @@ class FSM:
                 self.tier.setdefault(self.state + 3, {}).update({c: self.state + 3})
         for c in "012345789":
             self.tier.setdefault(self.state + 4, {}).update({c: self.state + 5})
-        
+
         for c in "012345789":
             self.tier.setdefault(self.state + 5, {}).update({c: self.state + 5})
-        self.state += 5    
+        self.state += 5
+
     def generate_integer(self, idx, function: Function):
-        for c in '-0123456789':
-            if c == '-':
+        for c in "-0123456789":
+            if c == "-":
                 self.tier.setdefault(self.state, {}).update({c: self.state + 1})
-            elif c == '0':
+            elif c == "0":
                 self.tier.setdefault(self.state, {}).update({c: self.state + 4})
             else:
                 self.tier.setdefault(self.state, {}).update({c: self.state + 3})
-        for c in '123456789':
-                self.tier.setdefault(self.state + 1, {}).update({c: self.state + 3})
+        for c in "123456789":
+            self.tier.setdefault(self.state + 1, {}).update({c: self.state + 3})
         for c in "0123456789":
-                self.tier.setdefault(self.state + 3, {}).update({c: self.state + 3})
-        if idx < len(function.parameters) -1:
-            self.tier.setdefault(self.state + 3, {}).update( {",": self.state + 5})
+            self.tier.setdefault(self.state + 3, {}).update({c: self.state + 3})
+        if idx < len(function.parameters) - 1:
+            self.tier.setdefault(self.state + 3, {}).update({",": self.state + 5})
         else:
             self.tier.setdefault(self.state + 3, {}).update({"}": self.state + 5})
         self.state += 4
+
     def generate_str(self):
         self.tier.setdefault(self.state, {}).update({'"': self.state + 1})
         self.tier.setdefault(self.state + 1, {}).update({None: self.state + 2})
         self.state += 2
+
     def generate_boolean(self):
         old_state = self.state
         for c in "true":
             self.tier.setdefault(self.state, {}).update({c: self.state + 1})
             self.state += 1
-        self.tier[self.state - 1]["e"] = self.state + 4                
-        self.tier.setdefault(old_state, {}).update({'f': self.state})
+        self.tier[self.state - 1]["e"] = self.state + 4
+        self.tier.setdefault(old_state, {}).update({"f": self.state})
         for c in "alse":
             self.tier.setdefault(self.state, {}).update({c: self.state + 1})
             self.state += 1
+
     def create_tier(self, functions: list[Function]):
         first_part = '{"name": "'
         for c in first_part:
@@ -118,7 +127,7 @@ class FSM:
         for function in functions:
             current = saved
             for c in function.name:
-                if c in  self.tier.get(current, {}):
+                if c in self.tier.get(current, {}):
                     current = self.tier[current][c]
                 else:
                     self.tier.setdefault(current, {}).update({c: self.state + 1})
@@ -127,7 +136,7 @@ class FSM:
             for c in params:
                 self.tier[self.state] = {c: self.state + 1}
                 self.state += 1
-            for idx , param in enumerate(function.parameters):
+            for idx, param in enumerate(function.parameters):
                 for c in '"' + param + '": ':
                     self.tier[self.state] = {c: self.state + 1}
                     self.state += 1
@@ -141,10 +150,10 @@ class FSM:
                         self.generate_str()
                     case paramType.BOOLEAN:
                         self.generate_boolean()
-                        
-                if idx < len(function.parameters) -1:
+
+                if idx < len(function.parameters) - 1:
                     for c in ", ":
-                        self.tier.setdefault(self.state, {}).update( {c: self.state + 1})
+                        self.tier.setdefault(self.state, {}).update({c: self.state + 1})
                         self.state += 1
                 else:
                     self.tier.setdefault(self.state, {}).update({"}": self.state + 1})
@@ -156,9 +165,9 @@ class FSM:
             if generated_token in self.tier[self.current_state]:
                 self.current_state = self.tier[self.current_state][generated_token]
                 return self.current_state != -1
-            for  c in generated_token:
+            for c in generated_token:
                 if c in self.tier[self.current_state]:
-                    self.current_state =  self.tier[self.current_state][c]
+                    self.current_state = self.tier[self.current_state][c]
                 if self.current_state == -1:
                     return False
         else:
@@ -166,6 +175,7 @@ class FSM:
                 self.current_state = self.tier[self.current_state][None]
                 self.free_state = False
         return True
+
 
 class Model:
     def __init__(self, parser: Parser):
@@ -178,6 +188,11 @@ class Model:
         self.console = Console()
         self.console.clear()
         self.fsm = FSM()
+        self.numbers_prompt = ""
+        self.regex_prompt = (
+            "For regex parameters, output ONLY valid, minimal regular expression"
+            " patterns (e.g., '\\d+' for numbers, '[aeiouAEIOU]' for vowels). Do not add explanations orcommentary.\n"
+        )
         self.get_functions()
         self.get_prompts()
         self.fsm.create_tier(self.functions)
@@ -192,14 +207,16 @@ class Model:
             '{"name": "function_name", "parameters": {...}}\n'
             "Available functions:\n"
             f"{self.functions_str}"
+            f"{self.numbers_prompt}"
             "<|im_end|>\n"
             "<|im_start|>user\n"
-            )
+        )
         self.set_data = set()
         self.encoded_data = {}
         self.decoded_data = {}
         self.get_vocabulary()
-    
+        print(self.base_prompt)
+
     def get_vocabulary(self):
         with open(self.model.get_path_to_vocab_file()) as vocab_file:
             bad_vocab_json = json.load(vocab_file)
@@ -214,6 +231,14 @@ class Model:
             self.functions_str += f"- {function.name}( "
             for param in function.parameters:
                 self.functions_str += f"{param}: {function.parameters[param].value}, "
+                if (
+                    not self.numbers_prompt
+                    and function.parameters[param] == paramType.NUMBER
+                ):
+                    self.numbers_prompt = (
+                        "Extract and use ONLY the exact numerical values mentioned in the user request."
+                        " Do not pad, invent, or add extra digits or zeros to the parameters.\n"
+                    )
             self.functions_str = self.functions_str[:-2]
             self.functions_str += f" ) : {function.description}\n"
 
@@ -221,13 +246,16 @@ class Model:
         with open(self.parser.functions_definition) as f:
             data = json.load(f)
         for function in data:
-            self.functions += [Function(
-                name=function['name'],
-                description=function['description'],
-                parameters={
-                    k: paramType(function['parameters'][k]['type']) for k in function['parameters'] 
-                }
-            )]
+            self.functions += [
+                Function(
+                    name=function["name"],
+                    description=function["description"],
+                    parameters={
+                        k: paramType(function["parameters"][k]["type"])
+                        for k in function["parameters"]
+                    },
+                )
+            ]
 
     def collect_tokens(self, state, token, allowed_tokens):
         if state == -1:
@@ -239,9 +267,9 @@ class Model:
                 return
             new_token = token + ch
             new_state = self.fsm.tier[state][ch]
-            if new_token in self.set_data :
+            if new_token in self.set_data:
                 allowed_tokens += [self.encoded_data[new_token]]
-                self.collect_tokens(new_state, new_token, allowed_tokens) 
+                self.collect_tokens(new_state, new_token, allowed_tokens)
 
     def save_output(self):
         path = Path(self.parser.output)
@@ -249,26 +277,24 @@ class Model:
             print(path.parent.mkdir(parents=True))
         if path.exists() and path.is_dir():
             raise IsADirectoryError(
-                f"Expected a file path, but '{path}'"
-                " is an existing directory.")
+                f"Expected a file path, but '{path}'" " is an existing directory."
+            )
         else:
             with open(path, "w") as output:
                 json.dump(self.final_result, output, indent=4)
 
-                
-
     def get_prompts(self):
-        with  open(self.parser.input) as f:
+        with open(self.parser.input) as f:
             data = json.load(f)
-            self.prompts = [key['prompt'] for key in data ]
-    
+            self.prompts = [key["prompt"] for key in data]
+
     def get_valid_token(self, token: str):
         resutl = 0
         flag = True
         for idx, c in enumerate(token):
             if c == '"':
                 if idx - 1 > 0:
-                    if token[idx - 1] != '\\':
+                    if token[idx - 1] != "\\":
                         resutl = idx
                         flag = False
                         break
@@ -278,16 +304,20 @@ class Model:
                     flag = False
                     break
         if not flag:
-            token = token[:resutl + 1]
+            token = token[: resutl + 1]
         return token
-    
+
     def test_collect_tokens(self):
         while True:
             while True:
                 allowed_tokens = []
                 self.collect_tokens(self.fsm.current_state, "", allowed_tokens)
                 self.fsm.free_state = not len(allowed_tokens)
-                new_token = '"' if not allowed_tokens else self.decoded_data[random.choice(allowed_tokens)]
+                new_token = (
+                    '"'
+                    if not allowed_tokens
+                    else self.decoded_data[random.choice(allowed_tokens)]
+                )
                 time.sleep(0.05)
                 print(new_token, end="", flush=True)
                 if not self.fsm.update_state(new_token):
@@ -295,14 +325,16 @@ class Model:
                     print()
                     break
             time.sleep(0.1)
+
     def get_allowed_tokens(self, state):
         allowed_tokens = []
         if state not in self.cache:
-            self.collect_tokens(state, "" ,allowed_tokens)
+            self.collect_tokens(state, "", allowed_tokens)
             self.cache[state] = allowed_tokens
         else:
             allowed_tokens = self.cache[state]
         return allowed_tokens
+
     def mask_allow_tokens(self, state, logits):
         allowed_tokens = self.get_allowed_tokens(state)
         filtred_logits = [float("-inf")] * len(logits)
@@ -314,15 +346,13 @@ class Model:
             self.fsm.free_state = True
         return logits
 
-
-
     def run(self):
         total = 0
 
         for promt in self.prompts:
             final_prompt = self.base_prompt + promt
-            final_prompt += "<|im_end|>" 
-            final_prompt += "\n" + "<|im_start|>assistant"        
+            final_prompt += "<|im_end|>"
+            final_prompt += "\n" + "<|im_start|>assistant"
             ids = self.model.encode(final_prompt).tolist()[0]
             line = ""
             start = time.time()
@@ -332,7 +362,7 @@ class Model:
                 logits = self.mask_allow_tokens(self.fsm.current_state, logits[:])
                 max_logit = logits.index(max(logits))
                 next_token = self.decoded_data[max_logit]
-                if  self.fsm.free_state:
+                if self.fsm.free_state:
                     next_token = self.get_valid_token(self.decoded_data[max_logit])
                     ids += self.model.encode(next_token).tolist()[0]
                 else:
@@ -348,10 +378,10 @@ class Model:
             panle = Panel(
                 to_print,
                 border_style="magenta",
-                subtitle=f"[dim][yellow]⏱ [/yellow]{time.time() - start:.2f}s • [cyan][/cyan]{len(ids)} tokens[/dim]")
-            self.console.print(panle)
+                subtitle=f"[dim][yellow]⏱ [/yellow]{time.time() - start:.2f}s • [cyan][/cyan]{len(ids)} tokens[/dim]",
+            )
+            self.console.print("\n", panle)
             self.final_result += [valid_json]
-            exit()
 
         self.save_output()
         end = time.time()
