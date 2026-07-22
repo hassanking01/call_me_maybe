@@ -3,9 +3,14 @@ from enum import Enum
 import argparse
 import json
 from llm_sdk import Small_LLM_Model
+from rich.console import Console
+from rich.syntax import Syntax
 from rich import print
+from rich.pretty import Pretty
+from rich.panel import Panel
 import random
 import time
+from pathlib import Path
 
 class paramType(Enum):
     NUMBER = "number"
@@ -72,7 +77,7 @@ class FSM:
         for c in "012345789":
             self.tier.setdefault(self.state + 5, {}).update({c: self.state + 5})
         self.state += 5    
-    def generate_integer(self, idx):
+    def generate_integer(self, idx, function: Function):
         for c in '-0123456789':
             if c == '-':
                 self.tier.setdefault(self.state, {}).update({c: self.state + 1})
@@ -109,7 +114,7 @@ class FSM:
             self.tier[self.state] = {c: self.state + 1}
             self.state += 1
         saved = self.state
-        params = '", "params": {'
+        params = '", "parameters": {'
         for function in functions:
             current = saved
             for c in function.name:
@@ -131,7 +136,7 @@ class FSM:
                     case paramType.NUMBER:
                         self.generate_number()
                     case paramType.INTEGER:
-                        self.generate_integer(idx)
+                        self.generate_integer(idx, function)
                     case paramType.STRING:
                         self.generate_str()
                     case paramType.BOOLEAN:
@@ -164,16 +169,20 @@ class FSM:
 
 class Model:
     def __init__(self, parser: Parser):
+        self.final_result = []
         self.parser = parser
         self.prompts: list[str] = []
         self.functions: list[Function] = []
+        self.start = time.time()
         self.model = Small_LLM_Model()
+        self.console = Console()
+        self.console.clear()
         self.fsm = FSM()
         self.get_functions()
         self.get_prompts()
         self.fsm.create_tier(self.functions)
-        print(self.fsm.tier)
         self.functions_str = ""
+        self.cache = {}
         self._creat_str_functions()
         self.base_prompt = (
             "<|im_start|>system\n"
@@ -190,7 +199,6 @@ class Model:
         self.encoded_data = {}
         self.decoded_data = {}
         self.get_vocabulary()
-        self.final_result = []
     
     def get_vocabulary(self):
         with open(self.model.get_path_to_vocab_file()) as vocab_file:
@@ -236,7 +244,18 @@ class Model:
                 self.collect_tokens(new_state, new_token, allowed_tokens) 
 
     def save_output(self):
-        pass
+        path = Path(self.parser.output)
+        if not path.parent.exists():
+            print(path.parent.mkdir(parents=True))
+        if path.exists() and path.is_dir():
+            raise IsADirectoryError(
+                f"Expected a file path, but '{path}'"
+                " is an existing directory.")
+        else:
+            with open(path, "w") as output:
+                json.dump(self.final_result, output, indent=4)
+
+                
 
     def get_prompts(self):
         with  open(self.parser.input) as f:
@@ -245,20 +264,20 @@ class Model:
     
     def get_valid_token(self, token: str):
         resutl = 0
-        
+        flag = True
         for idx, c in enumerate(token):
             if c == '"':
                 if idx - 1 > 0:
                     if token[idx - 1] != '\\':
                         resutl = idx
-                        self.fsm.free_state = False
+                        flag = False
                         break
 
                 else:
                     resutl = idx
-                    self.fsm.free_state = False
+                    flag = False
                     break
-        if not self.fsm.free_state:
+        if not flag:
             token = token[:resutl + 1]
         return token
     
@@ -269,45 +288,70 @@ class Model:
                 self.collect_tokens(self.fsm.current_state, "", allowed_tokens)
                 self.fsm.free_state = not len(allowed_tokens)
                 new_token = '"' if not allowed_tokens else self.decoded_data[random.choice(allowed_tokens)]
-                time.sleep(0.06)
+                time.sleep(0.05)
                 print(new_token, end="", flush=True)
                 if not self.fsm.update_state(new_token):
                     self.fsm.current_state = 0
                     print()
                     break
             time.sleep(0.1)
-            
+    def get_allowed_tokens(self, state):
+        allowed_tokens = []
+        if state not in self.cache:
+            self.collect_tokens(state, "" ,allowed_tokens)
+            self.cache[state] = allowed_tokens
+        else:
+            allowed_tokens = self.cache[state]
+        return allowed_tokens
+    def mask_allow_tokens(self, state, logits):
+        allowed_tokens = self.get_allowed_tokens(state)
+        filtred_logits = [float("-inf")] * len(logits)
+        if allowed_tokens:
+            for token_id in allowed_tokens:
+                filtred_logits[token_id] = logits[token_id]
+            logits = filtred_logits
+        else:
+            self.fsm.free_state = True
+        return logits
 
 
 
     def run(self):
+        total = 0
+
         for promt in self.prompts:
             final_prompt = self.base_prompt + promt
             final_prompt += "<|im_end|>" 
             final_prompt += "\n" + "<|im_start|>assistant"        
             ids = self.model.encode(final_prompt).tolist()[0]
             line = ""
+            start = time.time()
+            # with self.console.status(f"[bold green]Processing {promt}...[/bold green]", spinner="dots"):
             while True:
-                allowed_tokens = []
-                self.collect_tokens(self.fsm.current_state, "" ,allowed_tokens)
                 logits = self.model.get_logits_from_input_ids(ids)
-                filtred_logits = [float("-inf")] * len(logits)
-                if allowed_tokens:
-                    for token_id in allowed_tokens:
-                        filtred_logits[token_id] = logits[token_id]
-                    logits = filtred_logits
-                else:
-                    self.fsm.free_state = True
-                m = logits.index(max(logits))
-                ids += [m]
-                next_token = self.decoded_data[m]
+                logits = self.mask_allow_tokens(self.fsm.current_state, logits[:])
+                max_logit = logits.index(max(logits))
+                next_token = self.decoded_data[max_logit]
                 if  self.fsm.free_state:
-                    next_token = self.get_valid_token(self.decoded_data[m])
+                    next_token = self.get_valid_token(self.decoded_data[max_logit])
+                    ids += self.model.encode(next_token).tolist()[0]
+                else:
+                    ids += [max_logit]
                 line += next_token
-                print(next_token, end="", flush=True)
                 if not self.fsm.update_state(next_token):
                     self.fsm.current_state = 0
-                    valid_json = json.loads(line)
-                    self.final_result += [{"prompt": promt, **valid_json}]
-                    print()
                     break
+                print(next_token, end="", flush=True)
+            valid_json = json.loads(line)
+            valid_json = {"prompt": promt, **valid_json}
+            to_print = Pretty(valid_json, expand_all=True)
+            panle = Panel(
+                to_print,
+                border_style="magenta",
+                subtitle=f"[dim][yellow]⏱ [/yellow]{time.time() - start:.2f}s • [cyan][/cyan]{len(ids)} tokens[/dim]")
+            self.console.print(panle)
+            self.final_result += [valid_json]
+            exit()
+
+        self.save_output()
+        end = time.time()
