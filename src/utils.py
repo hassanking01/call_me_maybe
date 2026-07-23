@@ -171,7 +171,10 @@ class FSM:
                 if self.current_state == -1:
                     return False
         else:
-            if generated_token[-1] == '"':
+            if (
+                len(generated_token) == 1 and generated_token[-1] == '"' 
+                or generated_token[-1] == '"' and generated_token[-2] != '\\'
+                ):
                 self.current_state = self.tier[self.current_state][None]
                 self.free_state = False
         return True
@@ -196,6 +199,7 @@ class Model:
         self.get_functions()
         self.get_prompts()
         self.fsm.create_tier(self.functions)
+        print(self.fsm.tier, file=open("test.py", "w"))
         self.functions_str = ""
         self.cache = {}
         self._creat_str_functions()
@@ -215,7 +219,7 @@ class Model:
         self.encoded_data = {}
         self.decoded_data = {}
         self.get_vocabulary()
-        print(self.base_prompt)
+        # print(self.base_prompt)
 
     def get_vocabulary(self):
         with open(self.model.get_path_to_vocab_file()) as vocab_file:
@@ -368,10 +372,10 @@ class Model:
                 else:
                     ids += [max_logit]
                 line += next_token
+                print(next_token, end="", flush=True)
                 if not self.fsm.update_state(next_token):
                     self.fsm.current_state = 0
                     break
-                print(next_token, end="", flush=True)
             valid_json = json.loads(line)
             valid_json = {"prompt": promt, **valid_json}
             to_print = Pretty(valid_json, expand_all=True)

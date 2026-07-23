@@ -7,4 +7,4 @@ install:
 
 
 debug:
-	uv run -m pdb $(FILE)
+	uv run -m pdb $(FILE) --functions_definition="moulinette/data/input/functions_definition.json" --input="moulinette/data/input/function_calling_tests.json"
