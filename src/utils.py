@@ -10,7 +10,6 @@ from rich import print
 from rich.console import Console
 from rich.panel import Panel
 from rich.pretty import Pretty
-from rich.syntax import Syntax
 
 from llm_sdk import Small_LLM_Model
 
@@ -172,9 +171,11 @@ class FSM:
                     return False
         else:
             if (
-                len(generated_token) == 1 and generated_token[-1] == '"' 
-                or generated_token[-1] == '"' and generated_token[-2] != '\\'
-                ):
+                len(generated_token) == 1
+                and generated_token[-1] == '"'
+                or generated_token[-1] == '"'
+                and generated_token[-2] != "\\"
+            ):
                 self.current_state = self.tier[self.current_state][None]
                 self.free_state = False
         return True
@@ -281,7 +282,7 @@ class Model:
             print(path.parent.mkdir(parents=True))
         if path.exists() and path.is_dir():
             raise IsADirectoryError(
-                f"Expected a file path, but '{path}'" " is an existing directory."
+                f"Expected a file path, but '{path}' is an existing directory."
             )
         else:
             with open(path, "w") as output:
@@ -360,32 +361,35 @@ class Model:
             ids = self.model.encode(final_prompt).tolist()[0]
             line = ""
             start = time.time()
-            # with self.console.status(f"[bold green]Processing {promt}...[/bold green]", spinner="dots"):
-            while True:
-                logits = self.model.get_logits_from_input_ids(ids)
-                logits = self.mask_allow_tokens(self.fsm.current_state, logits[:])
-                max_logit = logits.index(max(logits))
-                next_token = self.decoded_data[max_logit]
-                if self.fsm.free_state:
-                    next_token = self.get_valid_token(self.decoded_data[max_logit])
-                    ids += self.model.encode(next_token).tolist()[0]
-                else:
-                    ids += [max_logit]
-                line += next_token
-                print(next_token, end="", flush=True)
-                if not self.fsm.update_state(next_token):
-                    self.fsm.current_state = 0
-                    break
+            with self.console.status(
+                f"[bold green]Processing {promt}...[/bold green]", spinner="dots"
+            ):
+                while True:
+                    logits = self.model.get_logits_from_input_ids(ids)
+                    logits = self.mask_allow_tokens(self.fsm.current_state, logits[:])
+                    max_logit = logits.index(max(logits))
+                    next_token = self.decoded_data[max_logit]
+                    if self.fsm.free_state:
+                        next_token = self.get_valid_token(self.decoded_data[max_logit])
+                        ids += self.model.encode(next_token).tolist()[0]
+                    else:
+                        ids += [max_logit]
+                    line += next_token
+                    print(next_token, end="", flush=True)
+                    if not self.fsm.update_state(next_token):
+                        self.fsm.current_state = 0
+                        break
             valid_json = json.loads(line)
             valid_json = {"prompt": promt, **valid_json}
             to_print = Pretty(valid_json, expand_all=True)
+            duration = time.time() - start
             panle = Panel(
                 to_print,
                 border_style="magenta",
-                subtitle=f"[dim][yellow]⏱ [/yellow]{time.time() - start:.2f}s • [cyan][/cyan]{len(ids)} tokens[/dim]",
+                subtitle=f"[dim][yellow]⏱ [/yellow]{duration:.2f}s • [cyan][/cyan]{len(ids)} tokens[/dim]",
             )
+            total += duration
             self.console.print("\n", panle)
             self.final_result += [valid_json]
 
         self.save_output()
-        end = time.time()

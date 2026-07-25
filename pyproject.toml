@@ -11,6 +11,8 @@ dependencies = [
     "pydantic>=2.13.4",
     "argparse>=1.4.0",
     "pdbpp>=0.12.1",
+    "flake8>=7.3.0",
+    "mypy>=2.3.0",
 ]
 
 [build-system]
