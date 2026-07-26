@@ -428,7 +428,7 @@ class Model:
                 spinner="dots",
                 speed=2,
                 spinner_style="gold"
-            ):
+            ) as status:
                 while True:
                     logits = self.model.get_logits_from_input_ids(ids)
                     logits = self.mask_allow_tokens(
@@ -445,6 +445,11 @@ class Model:
                     else:
                         ids += [max_logit]
                     line += next_token
+                    status.update(
+                        "[bold deep_sky_blue1]Processing "
+                        f"{promt}...[/bold deep_sky_blue1]\n"
+                        f"[dim green]\n{line}[/dim green]"
+                    )
                     if not self.fsm.update_state(next_token):
                         self.fsm.current_state = 0
                         break
