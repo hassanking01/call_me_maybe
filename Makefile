@@ -1,4 +1,3 @@
-FILE=""
 run:
 	uv run -m src
 install:
@@ -6,11 +5,14 @@ install:
 	uv sync
 lint:
 	uv run -m flake8 src
-	uv run -m mypy --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs src
+	uv run -m mypy --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs -p src
 
 lint-strict:
 	uv run -m flake8 src
-	uv run -m mypy --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs src
+	uv run -m mypy --strict -p src
 
 debug:
-	uv run -m pdb $(FILE) --functions_definition="moulinette/data/input/functions_definition.json" --input="moulinette/data/input/function_calling_tests.json"
+	uv run -m pdb -m src
+clean:
+	rm -rf .mypy_cache
+	uv run -m pyclean --debris .

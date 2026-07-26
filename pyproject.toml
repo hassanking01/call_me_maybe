@@ -1,7 +1,7 @@
 [project]
-name = "llm-sdk"
+name = "call_me_maybe"
 version = "0.1.0"
-description = "LLM SDK for local model inference"
+description = "LLM SDK Function Calling Project"
 requires-python = ">=3.10"
 dependencies = [
     "torch>=2.0.0",
@@ -13,6 +13,7 @@ dependencies = [
     "pdbpp>=0.12.1",
     "flake8>=7.3.0",
     "mypy>=2.3.0",
+    "pyclean>=3.7.0",
 ]
 
 [build-system]
