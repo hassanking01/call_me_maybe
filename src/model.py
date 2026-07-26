@@ -214,7 +214,7 @@ class Model:
         self.prompts: list[str] = []
         self.functions: list[Function] = []
         self.start = time.time()
-        self.model = Small_LLM_Model()
+        self.model = Small_LLM_Model(model_name=self.parser.model_name)
         self.console = Console()
         self.console.clear()
         self.fsm = FSM()

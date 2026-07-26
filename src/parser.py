@@ -17,6 +17,11 @@ class Parser:
             default="data/input/functions_definition.json",
         )
         parser.add_argument(
+            "-n",
+            "--model_name",
+            default="Qwen/Qwen3-0.6B"
+        )
+        parser.add_argument(
             "-i",
             "--input",
             default="data/input/function_calling_tests.json"
@@ -30,3 +35,4 @@ class Parser:
         self.input: str = args.input
         self.output: str = args.output
         self.functions_definition: str = args.functions_definition
+        self.model_name: str = args.model_name
