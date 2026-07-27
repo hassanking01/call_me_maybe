@@ -2,7 +2,10 @@ import argparse
 
 
 class Parser:
+    """Command-line argument parser for the application."""
+
     def __init__(self) -> None:
+        """Parse command-line arguments and initialize settings."""
         parser = argparse.ArgumentParser(
             "call_me_maybe",
             usage=(

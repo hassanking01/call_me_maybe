@@ -1,7 +1,6 @@
 run:
 	uv run -m src
 install:
-	mkdir -p ~/goinfre/call_me_maybe/.venv 
 	uv sync
 lint:
 	uv run -m flake8 src
@@ -15,4 +14,4 @@ debug:
 	uv run -m pdb -m src
 clean:
 	rm -rf .mypy_cache
-	uv run -m pyclean --debris .
+	uv run -m pyclean --debris all -- .
